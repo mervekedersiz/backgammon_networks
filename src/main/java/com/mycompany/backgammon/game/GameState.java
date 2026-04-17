@@ -26,6 +26,7 @@ public class GameState implements Serializable {
     public int die1 = 0;
     public int die2 = 0;
 
+    public boolean needsRoll = true;
     public Player winner = null;
     public String whiteName = "White";
     public String blackName = "Black";
@@ -52,6 +53,7 @@ public class GameState implements Serializable {
         turn = Player.WHITE;
         dice.clear();
         die1 = 0; die2 = 0;
+        needsRoll = true;
         winner = null;
     }
 

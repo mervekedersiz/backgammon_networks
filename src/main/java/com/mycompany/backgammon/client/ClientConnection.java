@@ -84,6 +84,7 @@ public class ClientConnection {
     }
 
     public void hello(String name)        { send(new Message(MessageType.HELLO, name)); }
+    public void rollDice()                { send(new Message(MessageType.ROLL)); }
     public void move(Move m)              { send(new Message(MessageType.MOVE, m)); }
     public void endTurn()                 { send(new Message(MessageType.END_TURN)); }
     public void replay()                  { send(new Message(MessageType.REPLAY)); }

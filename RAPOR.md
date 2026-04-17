@@ -1,7 +1,7 @@
 # Backgammon – Network Lab Projesi Raporu
 
 **Öğrenci:** Merve Kedersiz  
-**Öğrenci No:** D2521051704  
+**Öğrenci No:** 2221251045
 **Proje No:** 2 (Backgammon)  
 **Ders:** Computer Network Concepts Lab  
 **Tarih:** Nisan 2026
@@ -242,5 +242,4 @@ Move ──────────────────── BackgammonLogi
 
 ## 12. Proje Dosya İsmi
 
-Teslim için zip dosyası adı:  
-`kedersiz_merve_D2521051704_networklab_2026_project.zip`
+

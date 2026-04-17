@@ -19,6 +19,8 @@ public class GameScreen extends JFrame {
     private final ClientConnection conn;
 
     private final BoardPanel board = new BoardPanel();
+    private final DicePanel dicePanel = new DicePanel();
+    private final JButton rollButton = new JButton("Zar At");
     private final JTextArea log = new JTextArea(10, 24);
     private final JLabel turnLabel = new JLabel(" ");
     private final JLabel diceLabel = new JLabel(" ");
@@ -67,9 +69,23 @@ public class GameScreen extends JFrame {
 
         root.add(board, BorderLayout.CENTER);
 
-        // right panel: log + buttons
+        // right panel: dice + log + buttons
         JPanel right = new JPanel(new BorderLayout(4, 4));
         right.setPreferredSize(new Dimension(260, 0));
+
+        // dice area at top of right panel
+        JPanel diceArea = new JPanel(new BorderLayout(4, 4));
+        diceArea.setBorder(BorderFactory.createTitledBorder("Zar"));
+        diceArea.add(dicePanel, BorderLayout.CENTER);
+        rollButton.setFont(rollButton.getFont().deriveFont(Font.BOLD, 16f));
+        rollButton.setEnabled(false);
+        rollButton.addActionListener(e -> {
+            rollButton.setEnabled(false);
+            conn.rollDice();
+        });
+        diceArea.add(rollButton, BorderLayout.SOUTH);
+        right.add(diceArea, BorderLayout.NORTH);
+
         log.setEditable(false);
         log.setLineWrap(true);
         log.setWrapStyleWord(true);
@@ -110,6 +126,7 @@ public class GameScreen extends JFrame {
             pendingFrom = Integer.MIN_VALUE;
             board.clearSelection();
             refreshLabels();
+            updateDice();
         });
         conn.onGameOver = winner -> SwingUtilities.invokeLater(() -> showGameOver(winner));
         conn.onDisconnect = () -> SwingUtilities.invokeLater(() -> {
@@ -122,17 +139,44 @@ public class GameScreen extends JFrame {
     private void wireBoardClicks() {
         board.setOnPointClicked(idx -> {
             if (!isMyTurn()) { appendLog("Not your turn."); return; }
+            GameState s = lastState;
+            if (s == null) return;
+
             if (pendingFrom == Integer.MIN_VALUE) {
+                // First click: select source — must have own checker there
+                if (s.bar[s.barIndex(myColor)] > 0) {
+                    appendLog("You have checkers on the bar — click the bar to enter.");
+                    return;
+                }
+                if (s.countAt(idx, myColor) == 0) {
+                    appendLog("No own checker at point " + idx + ".");
+                    return;
+                }
                 pendingFrom = idx;
                 board.setSelected(idx);
+                appendLog("Selected point " + idx + ". Now click destination.");
             } else {
+                // Second click: if same point clicked again, cancel selection
+                if (idx == pendingFrom) {
+                    pendingFrom = Integer.MIN_VALUE;
+                    board.clearSelection();
+                    appendLog("Selection cancelled.");
+                    return;
+                }
                 attemptMove(pendingFrom, idx);
             }
         });
         board.setOnBarClicked(() -> {
             if (!isMyTurn()) return;
+            GameState s = lastState;
+            if (s == null) return;
+            if (s.bar[s.barIndex(myColor)] == 0) {
+                appendLog("No checkers on the bar.");
+                return;
+            }
             pendingFrom = -1;
             board.setSelected(-1);
+            appendLog("Bar selected. Click your entry point.");
         });
         board.setOnOffClicked(() -> {
             if (!isMyTurn()) return;
@@ -145,7 +189,8 @@ public class GameScreen extends JFrame {
     }
 
     private boolean isMyTurn() {
-        return lastState != null && myColor != null && lastState.turn == myColor && lastState.winner == null;
+        return lastState != null && myColor != null && lastState.turn == myColor
+                && lastState.winner == null && !lastState.needsRoll;
     }
 
     private void attemptMove(int from, int to) {
@@ -186,6 +231,17 @@ public class GameScreen extends JFrame {
         int diff = (p == Player.WHITE) ? (from - to) : (to - from);
         if (diff <= 0) return null;
         return dice.contains(diff) ? diff : null;
+    }
+
+    private void updateDice() {
+        if (lastState == null) return;
+        boolean myTurn = myColor != null && lastState.turn == myColor && lastState.winner == null;
+        rollButton.setEnabled(myTurn && lastState.needsRoll);
+        if (lastState.die1 > 0 && lastState.die2 > 0) {
+            dicePanel.setDice(lastState.die1, lastState.die2);
+        } else {
+            dicePanel.clearDice();
+        }
     }
 
     private void refreshLabels() {

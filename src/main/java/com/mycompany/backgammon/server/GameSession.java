@@ -64,39 +64,50 @@ public class GameSession implements Runnable {
     private boolean bothAlive() { return white.isAlive() && black.isAlive(); }
 
     private void playGame() throws InterruptedException {
-        // roll for the opening turn
-        int[] r = BackgammonLogic.rollDice();
-        BackgammonLogic.setDice(state, r[0], r[1]);
-        broadcastMsg(of(state.turn).getName() + " rolls " + r[0] + " & " + r[1]);
+        state.needsRoll = true;
         broadcastState();
 
-        // Safety counter — if both sides pass many turns in a row, something is wrong.
         int consecutivePasses = 0;
 
         while (state.winner == null && bothAlive()) {
             ClientHandler active = of(state.turn);
 
-            if (!BackgammonLogic.hasAnyMove(state, state.turn)) {
-                broadcastMsg(active.getName() + " has no legal moves — turn passes");
-                endTurn();
-                consecutivePasses++;
-                if (consecutivePasses >= 10) {
-                    broadcastMsg("[Server] Too many consecutive passes — game aborted.");
-                    return;
+            if (state.needsRoll) {
+                Message msg = active.takeBlocking();
+                if (msg == null || msg.type == MessageType.QUIT) {
+                    broadcastMsg(active.getName() + " quit"); return;
+                }
+                if (msg.type == MessageType.ROLL) {
+                    int[] r = BackgammonLogic.rollDice();
+                    BackgammonLogic.setDice(state, r[0], r[1]);
+                    state.needsRoll = false;
+                    broadcastMsg(active.getName() + " rolls " + r[0] + " & " + r[1]);
+
+                    if (!BackgammonLogic.hasAnyMove(state, state.turn)) {
+                        broadcastMsg(active.getName() + " has no legal moves — turn passes");
+                        endTurn();
+                        consecutivePasses++;
+                        if (consecutivePasses >= 10) {
+                            broadcastMsg("[Server] Too many consecutive passes — game aborted.");
+                            return;
+                        }
+                        continue;
+                    }
+                    consecutivePasses = 0;
+                    broadcastState();
+                } else {
+                    active.send(MessageType.MESSAGE, "You must roll the dice first.");
                 }
                 continue;
             }
-            consecutivePasses = 0; // reset once someone can move
 
             Message msg = active.takeBlocking();
             if (msg == null || msg.type == MessageType.QUIT) {
-                broadcastMsg(active.getName() + " quit");
-                return;
+                broadcastMsg(active.getName() + " quit"); return;
             }
             switch (msg.type) {
                 case MOVE -> handleMove(active, (Move) msg.payload);
                 case END_TURN -> {
-                    // Only honour a voluntary pass if there truly are no legal moves left.
                     if (BackgammonLogic.hasAnyMove(state, active.getColor())) {
                         active.send(MessageType.MESSAGE,
                                 "You still have legal moves — you must play them.");
@@ -135,9 +146,10 @@ public class GameSession implements Runnable {
 
     private void endTurn() {
         state.turn = state.turn.opponent();
-        int[] r = BackgammonLogic.rollDice();
-        BackgammonLogic.setDice(state, r[0], r[1]);
-        broadcastMsg(of(state.turn).getName() + " rolls " + r[0] + " & " + r[1]);
+        state.needsRoll = true;
+        state.dice.clear();
+        state.die1 = 0;
+        state.die2 = 0;
         broadcastState();
     }
 
