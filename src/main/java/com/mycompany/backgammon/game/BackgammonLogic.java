@@ -1,6 +1,8 @@
 package com.mycompany.backgammon.game;
 
 import java.util.Random;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 /**
  * Backgammon rule engine — stateless helpers operating on a GameState.
@@ -59,6 +61,32 @@ public final class BackgammonLogic {
     public static boolean hasAnyMove(GameState s, Player p) {
         for (int d : s.dice) if (hasAnyLegalMoveWithDie(s, p, d)) return true;
         return false;
+    }
+
+    /** Legal destinations for a selected source using the currently-remaining dice. */
+    public static Set<Integer> legalDestinations(GameState s, Player p, int from) {
+        Set<Integer> targets = new LinkedHashSet<>();
+        if (s == null || p == null || s.turn != p || s.winner != null || s.needsRoll) return targets;
+
+        int bi = s.barIndex(p);
+        if (s.bar[bi] > 0) {
+            if (from != -1) return targets;
+            for (int die : s.dice) {
+                int entry = (p == Player.WHITE) ? 24 - die : die - 1;
+                if (entry >= 0 && entry <= 23 && !s.blockedBy(entry, p.opponent())) {
+                    targets.add(entry);
+                }
+            }
+            return targets;
+        }
+
+        if (from < 0 || from > 23 || s.countAt(from, p) == 0) return targets;
+        for (int die : s.dice) {
+            if (!canMoveFrom(s, p, from, die)) continue;
+            int dest = (p == Player.WHITE) ? from - die : from + die;
+            targets.add((dest >= 0 && dest <= 23) ? dest : -1);
+        }
+        return targets;
     }
 
     private static boolean canMoveFrom(GameState s, Player p, int from, int die) {

@@ -7,6 +7,8 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.function.IntConsumer;
 
 /**
@@ -26,8 +28,8 @@ import java.util.function.IntConsumer;
 public class BoardPanel extends JPanel {
 
     private GameState state;
-    private Player viewer = Player.WHITE;
     private int selectedFrom = Integer.MIN_VALUE; // -2 sentinel = none; -1 = bar selected
+    private final Set<Integer> legalTargets = new LinkedHashSet<>();
 
     private IntConsumer onPointClicked = p -> {};
     private Runnable onBarClicked = () -> {};
@@ -40,6 +42,7 @@ public class BoardPanel extends JPanel {
     private static final Color FRAME       = new Color(0x3D2313);
     private static final Color WHITE_C     = new Color(0xF5F5F5);
     private static final Color BLACK_C     = new Color(0x1A1A1A);
+    private static final Color TARGET_C    = new Color(0x37C871);
 
     public BoardPanel() {
         setBackground(FRAME);
@@ -50,9 +53,17 @@ public class BoardPanel extends JPanel {
     }
 
     public void setState(GameState s)          { this.state = s; repaint(); }
-    public void setViewer(Player p)            { this.viewer = p; repaint(); }
     public void setSelected(int idx)           { this.selectedFrom = idx; repaint(); }
-    public void clearSelection()               { this.selectedFrom = Integer.MIN_VALUE; repaint(); }
+    public void setLegalTargets(Set<Integer> targets) {
+        legalTargets.clear();
+        if (targets != null) legalTargets.addAll(targets);
+        repaint();
+    }
+    public void clearSelection() {
+        this.selectedFrom = Integer.MIN_VALUE;
+        legalTargets.clear();
+        repaint();
+    }
 
     public void setOnPointClicked(IntConsumer c) { this.onPointClicked = c; }
     public void setOnBarClicked(Runnable r)      { this.onBarClicked = r; }
@@ -109,11 +120,9 @@ public class BoardPanel extends JPanel {
      *   bottom L→R: 17,16,15,14,13,12 | BAR | 18,19,20,21,22,23
      */
     private int colToIndex(int col, boolean top) {
-        if (viewer == Player.BLACK) {
-            if (top)   return col < 6 ? col + 6 : 11 - col;
-            else       return col < 6 ? 17 - col : 12 + col;
-        }
-        // WHITE
+        // Both players see the same board layout (White's perspective):
+        //   top    L→R: 12,13,14,15,16,17 | BAR | 18,19,20,21,22,23
+        //   bottom L→R: 11,10, 9, 8, 7, 6 | BAR |  5, 4, 3, 2, 1, 0
         return top ? (12 + col) : (11 - col);
     }
 
@@ -184,7 +193,8 @@ public class BoardPanel extends JPanel {
         // tray (borne off)
         drawTrayCheckers(g);
 
-        // selected highlight
+        // legal target and selected highlights
+        drawLegalTargets(g);
         if (selectedFrom != Integer.MIN_VALUE) drawSelection(g);
 
         // status bar
@@ -249,20 +259,16 @@ public class BoardPanel extends JPanel {
         Rectangle bar = barRect();
         int size = Math.min(bar.width - 4, 30);
         int x = bar.x + bar.width / 2 - size / 2;
-        // white on bar in upper middle, black in lower middle — swap if viewer is black
         int whiteCount = state.bar[0];
         int blackCount = state.bar[1];
         int midY = bar.y + bar.height / 2;
+        // White bar checkers in upper half, Black in lower half (fixed for both viewers)
         for (int i = 0; i < whiteCount; i++) {
-            int y = (viewer == Player.WHITE)
-                    ? midY - (i + 1) * size - 4
-                    : midY + i * size + 4;
+            int y = midY - (i + 1) * size - 4;
             fillChecker(g, x, y, size, WHITE_C);
         }
         for (int i = 0; i < blackCount; i++) {
-            int y = (viewer == Player.WHITE)
-                    ? midY + i * size + 4
-                    : midY - (i + 1) * size - 4;
+            int y = midY + i * size + 4;
             fillChecker(g, x, y, size, BLACK_C);
         }
     }
@@ -272,17 +278,13 @@ public class BoardPanel extends JPanel {
         int size = Math.min(tray.width - 8, 18);
         int whiteOff = state.off[0];
         int blackOff = state.off[1];
-        // white borne off — in white's half (bottom by default)
+        // White borne off in bottom half, Black borne off in top half (fixed for both viewers)
         for (int i = 0; i < whiteOff; i++) {
-            int y = (viewer == Player.WHITE)
-                    ? tray.y + tray.height - (i + 1) * (size + 1) - 4
-                    : tray.y + i * (size + 1) + 4;
+            int y = tray.y + tray.height - (i + 1) * (size + 1) - 4;
             fillChecker(g, tray.x + (tray.width - size) / 2, y, size, WHITE_C);
         }
         for (int i = 0; i < blackOff; i++) {
-            int y = (viewer == Player.WHITE)
-                    ? tray.y + i * (size + 1) + 4
-                    : tray.y + tray.height - (i + 1) * (size + 1) - 4;
+            int y = tray.y + i * (size + 1) + 4;
             fillChecker(g, tray.x + (tray.width - size) / 2, y, size, BLACK_C);
         }
     }
@@ -292,6 +294,29 @@ public class BoardPanel extends JPanel {
         g.fillOval(x, y, size, size);
         g.setColor(Color.DARK_GRAY);
         g.drawOval(x, y, size, size);
+    }
+
+    private void drawLegalTargets(Graphics2D g) {
+        if (legalTargets.isEmpty()) return;
+        Stroke oldStroke = g.getStroke();
+        g.setColor(TARGET_C);
+        g.setStroke(new BasicStroke(4f));
+        for (int target : legalTargets) {
+            if (target == -1) {
+                Rectangle tray = trayRect();
+                g.drawRect(tray.x + 4, tray.y + 4, tray.width - 8, tray.height - 8);
+                continue;
+            }
+            for (int col = 0; col < 12; col++) {
+                for (boolean top : new boolean[]{true, false}) {
+                    if (colToIndex(col, top) == target) {
+                        Rectangle r = pointRect(col, top);
+                        g.drawRect(r.x + 5, r.y + 5, r.width - 10, r.height - 10);
+                    }
+                }
+            }
+        }
+        g.setStroke(oldStroke);
     }
 
     private void drawSelection(Graphics2D g) {

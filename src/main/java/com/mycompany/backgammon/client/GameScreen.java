@@ -1,5 +1,6 @@
 package com.mycompany.backgammon.client;
 
+import com.mycompany.backgammon.game.BackgammonLogic;
 import com.mycompany.backgammon.game.GameState;
 import com.mycompany.backgammon.game.Move;
 import com.mycompany.backgammon.game.Player;
@@ -28,6 +29,7 @@ public class GameScreen extends JFrame {
     private volatile Player myColor; // null until assigned
     private volatile GameState lastState;
     private int pendingFrom = Integer.MIN_VALUE; // -2 none, -1 bar, else 0..23
+    private Set<Integer> legalTargets = new LinkedHashSet<>();
 
     public GameScreen(ClientConnection conn, String playerName) {
         super("Backgammon — " + playerName);
@@ -95,7 +97,7 @@ public class GameScreen extends JFrame {
         JButton endTurn = new JButton("End turn / Pass");
         endTurn.addActionListener(e -> conn.endTurn());
         JButton cancel = new JButton("Cancel selection");
-        cancel.addActionListener(e -> { pendingFrom = Integer.MIN_VALUE; board.clearSelection(); });
+        cancel.addActionListener(e -> clearPendingSelection());
         JButton quit = new JButton("Quit");
         quit.addActionListener(e -> { conn.quit(); dispose(); System.exit(0); });
         buttons.add(endTurn);
@@ -110,21 +112,18 @@ public class GameScreen extends JFrame {
     private void wireConnection() {
         conn.onAssignColor = color -> SwingUtilities.invokeLater(() -> {
             myColor = color;
-            board.setViewer(color);
             appendLog("You are " + color + ".");
         });
         conn.onWaiting = text -> SwingUtilities.invokeLater(() -> appendLog(text));
         conn.onMessage = text -> SwingUtilities.invokeLater(() -> appendLog(text));
         conn.onIllegalMove = text -> SwingUtilities.invokeLater(() -> {
             appendLog("[ILLEGAL] " + text);
-            pendingFrom = Integer.MIN_VALUE;
-            board.clearSelection();
+            clearPendingSelection();
         });
         conn.onState = s -> SwingUtilities.invokeLater(() -> {
             lastState = s;
             board.setState(s);
-            pendingFrom = Integer.MIN_VALUE;
-            board.clearSelection();
+            clearPendingSelection();
             refreshLabels();
             updateDice();
         });
@@ -152,17 +151,18 @@ public class GameScreen extends JFrame {
                     appendLog("No own checker at point " + idx + ".");
                     return;
                 }
-                pendingFrom = idx;
-                board.setSelected(idx);
+                Set<Integer> targets = BackgammonLogic.legalDestinations(s, myColor, idx);
+                if (targets.isEmpty()) return;
+                setPendingSelection(idx, targets);
                 appendLog("Selected point " + idx + ". Now click destination.");
             } else {
                 // Second click: if same point clicked again, cancel selection
                 if (idx == pendingFrom) {
-                    pendingFrom = Integer.MIN_VALUE;
-                    board.clearSelection();
+                    clearPendingSelection();
                     appendLog("Selection cancelled.");
                     return;
                 }
+                if (!legalTargets.contains(idx)) return;
                 attemptMove(pendingFrom, idx);
             }
         });
@@ -174,16 +174,14 @@ public class GameScreen extends JFrame {
                 appendLog("No checkers on the bar.");
                 return;
             }
-            pendingFrom = -1;
-            board.setSelected(-1);
+            Set<Integer> targets = BackgammonLogic.legalDestinations(s, myColor, -1);
+            if (targets.isEmpty()) return;
+            setPendingSelection(-1, targets);
             appendLog("Bar selected. Click your entry point.");
         });
         board.setOnOffClicked(() -> {
             if (!isMyTurn()) return;
-            if (pendingFrom == Integer.MIN_VALUE) {
-                appendLog("Select a source point first.");
-                return;
-            }
+            if (pendingFrom == Integer.MIN_VALUE || !legalTargets.contains(-1)) return;
             attemptMove(pendingFrom, -1);
         });
     }
@@ -194,14 +192,27 @@ public class GameScreen extends JFrame {
     }
 
     private void attemptMove(int from, int to) {
+        if (!legalTargets.contains(to)) return;
         Integer die = pickDie(from, to);
         if (die == null) {
-            appendLog("No remaining die fits this move.");
-            pendingFrom = Integer.MIN_VALUE;
-            board.clearSelection();
+            clearPendingSelection();
             return;
         }
         conn.move(new Move(from, to, die));
+        clearPendingSelection();
+    }
+
+    private void setPendingSelection(int from, Set<Integer> targets) {
+        pendingFrom = from;
+        legalTargets = new LinkedHashSet<>(targets);
+        board.setSelected(from);
+        board.setLegalTargets(legalTargets);
+    }
+
+    private void clearPendingSelection() {
+        pendingFrom = Integer.MIN_VALUE;
+        legalTargets.clear();
+        board.clearSelection();
     }
 
     /** Pick a die value from remaining dice that is consistent with the requested move. */
