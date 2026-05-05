@@ -74,4 +74,21 @@ public class GameState implements Serializable {
     public boolean blotOf(int idx, Player opp) {
         return countAt(idx, opp) == 1;
     }
+
+    public GameState deepCopy() {
+        GameState copy = new GameState();
+        System.arraycopy(this.points, 0, copy.points, 0, 24);
+        System.arraycopy(this.bar, 0, copy.bar, 0, 2);
+        System.arraycopy(this.off, 0, copy.off, 0, 2);
+        copy.turn = this.turn;
+        copy.dice.clear();
+        copy.dice.addAll(this.dice);
+        copy.die1 = this.die1;
+        copy.die2 = this.die2;
+        copy.needsRoll = this.needsRoll;
+        copy.winner = this.winner;
+        copy.whiteName = this.whiteName;
+        copy.blackName = this.blackName;
+        return copy;
+    }
 }

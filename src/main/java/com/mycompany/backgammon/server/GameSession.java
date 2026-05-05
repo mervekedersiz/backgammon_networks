@@ -7,6 +7,9 @@ import com.mycompany.backgammon.game.Player;
 import com.mycompany.backgammon.protocol.Message;
 import com.mycompany.backgammon.protocol.MessageType;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Two-client backgammon session: owns the GameState and drives the turn loop.
  */
@@ -15,6 +18,9 @@ public class GameSession implements Runnable {
     private final ClientHandler white;
     private final ClientHandler black;
     private final GameState state = new GameState();
+
+    // Snapshots taken before each move in the current turn; cleared on new turn roll.
+    private final List<GameState> turnSnapshots = new ArrayList<>();
 
     public GameSession(ClientHandler white, ClientHandler black) {
         this.white = white;
@@ -81,6 +87,7 @@ public class GameSession implements Runnable {
                     int[] r = BackgammonLogic.rollDice();
                     BackgammonLogic.setDice(state, r[0], r[1]);
                     state.needsRoll = false;
+                    turnSnapshots.clear(); // new turn: reset undo history
                     broadcastMsg(active.getName() + " rolls " + r[0] + " & " + r[1]);
 
                     if (!BackgammonLogic.hasAnyMove(state, state.turn)) {
@@ -107,6 +114,7 @@ public class GameSession implements Runnable {
             }
             switch (msg.type) {
                 case MOVE -> handleMove(active, (Move) msg.payload);
+                case UNDO -> handleUndo(active);
                 case END_TURN -> {
                     if (BackgammonLogic.hasAnyMove(state, active.getColor())) {
                         active.send(MessageType.MESSAGE,
@@ -127,8 +135,12 @@ public class GameSession implements Runnable {
     }
 
     private void handleMove(ClientHandler active, Move m) {
+        // Save snapshot before applying so UNDO can restore it
+        turnSnapshots.add(state.deepCopy());
+
         String err = BackgammonLogic.applyMove(state, active.getColor(), m);
         if (err != null) {
+            turnSnapshots.remove(turnSnapshots.size() - 1); // rollback snapshot
             active.send(MessageType.ILLEGAL_MOVE, err);
             return;
         }
@@ -144,6 +156,30 @@ public class GameSession implements Runnable {
         broadcastState();
     }
 
+    private void handleUndo(ClientHandler active) {
+        if (turnSnapshots.isEmpty()) {
+            active.send(MessageType.MESSAGE, "Geri alinacak hamle yok.");
+            return;
+        }
+        GameState prev = turnSnapshots.remove(turnSnapshots.size() - 1);
+        restoreState(prev);
+        broadcastState();
+        broadcastMsg(active.getName() + " son hamlesini geri aldi.");
+    }
+
+    private void restoreState(GameState snap) {
+        System.arraycopy(snap.points, 0, state.points, 0, 24);
+        System.arraycopy(snap.bar, 0, state.bar, 0, 2);
+        System.arraycopy(snap.off, 0, state.off, 0, 2);
+        state.turn = snap.turn;
+        state.dice.clear();
+        state.dice.addAll(snap.dice);
+        state.die1 = snap.die1;
+        state.die2 = snap.die2;
+        state.needsRoll = snap.needsRoll;
+        state.winner = snap.winner;
+    }
+
     private void endTurn() {
         state.turn = state.turn.opponent();
         state.needsRoll = true;
@@ -153,22 +189,38 @@ public class GameSession implements Runnable {
         broadcastState();
     }
 
-    /** Prompt both clients for replay. Returns true iff both confirm. */
+    /** Prompt both clients for replay in parallel. Returns true iff both confirm. */
     private boolean askReplay() throws InterruptedException {
-        white.send(MessageType.MESSAGE, "Send REPLAY to play again, or QUIT to leave.");
-        black.send(MessageType.MESSAGE, "Send REPLAY to play again, or QUIT to leave.");
-        boolean wr = waitReplay(white);
-        boolean br = waitReplay(black);
-        return wr && br && bothAlive();
+        white.send(MessageType.MESSAGE, "Oyun bitti! REPLAY veya QUIT gonderin.");
+        black.send(MessageType.MESSAGE, "Oyun bitti! REPLAY veya QUIT gonderin.");
+
+        boolean[] results = new boolean[2];
+        Thread wt = new Thread(() -> {
+            try { results[0] = waitReplay(white); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+        }, "replay-wait-white");
+        Thread bt = new Thread(() -> {
+            try { results[1] = waitReplay(black); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+        }, "replay-wait-black");
+        wt.start();
+        bt.start();
+        wt.join();
+        bt.join();
+
+        if (results[0] && !results[1]) white.send(MessageType.MESSAGE, "Rakibiniz tekrar oynamak istemedi.");
+        if (!results[0] && results[1]) black.send(MessageType.MESSAGE, "Rakibiniz tekrar oynamak istemedi.");
+
+        return results[0] && results[1] && bothAlive();
     }
 
     private boolean waitReplay(ClientHandler c) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + 60_000;
         while (c.isAlive()) {
-            Message m = c.takeBlocking();
+            long rem = deadline - System.currentTimeMillis();
+            if (rem <= 0) return false;
+            Message m = c.poll(rem);
             if (m == null) return false;
             if (m.type == MessageType.REPLAY) return true;
             if (m.type == MessageType.QUIT) return false;
-            // ignore stray messages
         }
         return false;
     }

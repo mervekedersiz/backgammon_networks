@@ -29,6 +29,7 @@ public class BoardPanel extends JPanel {
 
     private GameState state;
     private int selectedFrom = Integer.MIN_VALUE; // -2 sentinel = none; -1 = bar selected
+    private boolean showDebugLabels = false;
     private final Set<Integer> legalTargets = new LinkedHashSet<>();
 
     private IntConsumer onPointClicked = p -> {};
@@ -221,14 +222,15 @@ public class BoardPanel extends JPanel {
         g.setColor(Color.BLACK);
         g.drawPolygon(xs, ys, 3);
 
-        // label (absolute index for debugging / clarity — shown dimly)
-        int idx = colToIndex(col, top);
-        g.setColor(new Color(0, 0, 0, 120));
-        g.setFont(g.getFont().deriveFont(10f));
-        String label = String.valueOf(idx);
-        int lx = r.x + r.width / 2 - g.getFontMetrics().stringWidth(label) / 2;
-        int ly = top ? r.y + 12 : r.y + r.height - 4;
-        g.drawString(label, lx, ly);
+        if (showDebugLabels) {
+            int idx = colToIndex(col, top);
+            g.setColor(new Color(0, 0, 0, 120));
+            g.setFont(g.getFont().deriveFont(10f));
+            String label = String.valueOf(idx);
+            int lx = r.x + r.width / 2 - g.getFontMetrics().stringWidth(label) / 2;
+            int ly = top ? r.y + 12 : r.y + r.height - 4;
+            g.drawString(label, lx, ly);
+        }
     }
 
     private void drawCheckersAt(Graphics2D g, int col, boolean top) {

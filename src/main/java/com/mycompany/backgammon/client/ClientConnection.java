@@ -22,6 +22,7 @@ public class ClientConnection {
     private final ObjectOutputStream out;
     private final ObjectInputStream in;
     private volatile boolean running = true;
+    private volatile boolean intentionalClose = false;
 
     public Consumer<Player>   onAssignColor = p -> {};
     public Consumer<GameState> onState      = s -> {};
@@ -56,7 +57,7 @@ public class ClientConnection {
             // falls through to disconnect callback
         } finally {
             running = false;
-            onDisconnect.run();
+            if (!intentionalClose) onDisconnect.run();
         }
     }
 
@@ -86,9 +87,11 @@ public class ClientConnection {
     public void hello(String name)        { send(new Message(MessageType.HELLO, name)); }
     public void rollDice()                { send(new Message(MessageType.ROLL)); }
     public void move(Move m)              { send(new Message(MessageType.MOVE, m)); }
+    public void undo()                    { send(new Message(MessageType.UNDO)); }
     public void endTurn()                 { send(new Message(MessageType.END_TURN)); }
     public void replay()                  { send(new Message(MessageType.REPLAY)); }
     public void quit() {
+        intentionalClose = true;
         send(new Message(MessageType.QUIT));
         close();
     }

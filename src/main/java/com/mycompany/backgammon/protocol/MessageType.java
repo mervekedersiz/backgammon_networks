@@ -7,6 +7,7 @@ public enum MessageType {
     ROLL,           // payload: null (request to roll dice at start of turn)
     END_TURN,       // payload: null (player declares turn finished if no more moves)
     REPLAY,         // payload: null (ask to rematch after game ends)
+    UNDO,           // payload: null (undo last move within current turn)
     QUIT,           // payload: null
 
     // Server -> Client

@@ -21,7 +21,9 @@ public class GameScreen extends JFrame {
 
     private final BoardPanel board = new BoardPanel();
     private final DicePanel dicePanel = new DicePanel();
-    private final JButton rollButton = new JButton("Zar At");
+    private final JButton rollButton    = new JButton("Zar At");
+    private final JButton undoButton    = new JButton("Geri Al");
+    private final JButton endTurnButton = new JButton("End turn / Pass");
     private final JTextArea log = new JTextArea(10, 24);
     private final JLabel turnLabel = new JLabel(" ");
     private final JLabel diceLabel = new JLabel(" ");
@@ -30,6 +32,7 @@ public class GameScreen extends JFrame {
     private volatile GameState lastState;
     private int pendingFrom = Integer.MIN_VALUE; // -2 none, -1 bar, else 0..23
     private Set<Integer> legalTargets = new LinkedHashSet<>();
+    private boolean gameOverSeen = false;
 
     public GameScreen(ClientConnection conn, String playerName) {
         super("Backgammon — " + playerName);
@@ -62,11 +65,14 @@ public class GameScreen extends JFrame {
 
         // top status bar
         JPanel top = new JPanel(new GridLayout(1, 2));
-        top.add(turnLabel);
-        top.add(diceLabel);
-        turnLabel.setFont(turnLabel.getFont().deriveFont(Font.BOLD, 14f));
+        turnLabel.setOpaque(true);
+        turnLabel.setFont(new Font("SansSerif", Font.BOLD, 16));
+        turnLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        turnLabel.setBorder(BorderFactory.createEmptyBorder(4, 8, 4, 8));
         diceLabel.setFont(diceLabel.getFont().deriveFont(Font.BOLD, 14f));
         diceLabel.setHorizontalAlignment(SwingConstants.RIGHT);
+        top.add(turnLabel);
+        top.add(diceLabel);
         root.add(top, BorderLayout.NORTH);
 
         root.add(board, BorderLayout.CENTER);
@@ -93,14 +99,17 @@ public class GameScreen extends JFrame {
         log.setWrapStyleWord(true);
         right.add(new JScrollPane(log), BorderLayout.CENTER);
 
-        JPanel buttons = new JPanel(new GridLayout(3, 1, 4, 4));
-        JButton endTurn = new JButton("End turn / Pass");
-        endTurn.addActionListener(e -> conn.endTurn());
+        JPanel buttons = new JPanel(new GridLayout(4, 1, 4, 4));
+        endTurnButton.addActionListener(e -> conn.endTurn());
+        endTurnButton.setEnabled(false);
         JButton cancel = new JButton("Cancel selection");
         cancel.addActionListener(e -> clearPendingSelection());
+        undoButton.setEnabled(false);
+        undoButton.addActionListener(e -> conn.undo());
         JButton quit = new JButton("Quit");
         quit.addActionListener(e -> { conn.quit(); dispose(); System.exit(0); });
-        buttons.add(endTurn);
+        buttons.add(endTurnButton);
+        buttons.add(undoButton);
         buttons.add(cancel);
         buttons.add(quit);
         right.add(buttons, BorderLayout.SOUTH);
@@ -121,13 +130,22 @@ public class GameScreen extends JFrame {
             clearPendingSelection();
         });
         conn.onState = s -> SwingUtilities.invokeLater(() -> {
+            if (gameOverSeen && s.off[0] == 0 && s.off[1] == 0
+                    && s.die1 == 0 && s.die2 == 0 && s.needsRoll) {
+                log.setText("");
+                appendLog("Yeni oyun basladi!");
+                gameOverSeen = false;
+            }
             lastState = s;
             board.setState(s);
             clearPendingSelection();
             refreshLabels();
             updateDice();
         });
-        conn.onGameOver = winner -> SwingUtilities.invokeLater(() -> showGameOver(winner));
+        conn.onGameOver = winner -> SwingUtilities.invokeLater(() -> {
+            gameOverSeen = true;
+            showGameOver(winner);
+        });
         conn.onDisconnect = () -> SwingUtilities.invokeLater(() -> {
             appendLog("Disconnected from server.");
             JOptionPane.showMessageDialog(this, "Disconnected from server.",
@@ -248,8 +266,12 @@ public class GameScreen extends JFrame {
         if (lastState == null) return;
         boolean myTurn = myColor != null && lastState.turn == myColor && lastState.winner == null;
         rollButton.setEnabled(myTurn && lastState.needsRoll);
-        if (lastState.die1 > 0 && lastState.die2 > 0) {
-            dicePanel.setDice(lastState.die1, lastState.die2);
+        undoButton.setEnabled(myTurn && !lastState.needsRoll);
+        boolean canEnd = myTurn && !lastState.needsRoll
+                && !BackgammonLogic.hasAnyMove(lastState, myColor);
+        endTurnButton.setEnabled(canEnd);
+        if (!lastState.dice.isEmpty()) {
+            dicePanel.setRemainingDice(lastState.dice);
         } else {
             dicePanel.clearDice();
         }
@@ -258,9 +280,30 @@ public class GameScreen extends JFrame {
     private void refreshLabels() {
         if (lastState == null) return;
         Player t = lastState.turn;
-        String turnName = (t == Player.WHITE ? lastState.whiteName + " (White)" : lastState.blackName + " (Black)");
-        turnLabel.setText("Turn: " + turnName + (t == myColor ? "  <-- YOU" : ""));
-        diceLabel.setText("Dice remaining: " + lastState.dice);
+        String turnName = (t == Player.WHITE
+                ? lastState.whiteName + " (Beyaz)"
+                : lastState.blackName + " (Siyah)");
+
+        if (lastState.winner != null) {
+            String winnerName = (lastState.winner == Player.WHITE
+                    ? lastState.whiteName + " (Beyaz)"
+                    : lastState.blackName + " (Siyah)");
+            turnLabel.setText("Oyun Bitti — Kazanan: " + winnerName);
+            turnLabel.setBackground(new Color(0x3D2313));
+            turnLabel.setForeground(Color.WHITE);
+        } else if (myColor != null && t == myColor) {
+            turnLabel.setText("Sira Sende!  —  " + turnName);
+            turnLabel.setBackground(new Color(46, 125, 50));
+            turnLabel.setForeground(Color.WHITE);
+        } else {
+            String oppName = (t == Player.WHITE
+                    ? lastState.whiteName : lastState.blackName);
+            turnLabel.setText("Rakibin Oynuyor...  —  " + oppName);
+            turnLabel.setBackground(new Color(230, 120, 0));
+            turnLabel.setForeground(Color.WHITE);
+        }
+
+        diceLabel.setText("Kalan Zar: " + lastState.dice);
     }
 
     private void appendLog(String s) {
@@ -269,16 +312,11 @@ public class GameScreen extends JFrame {
     }
 
     private void showGameOver(Player winner) {
-        String winnerName = (winner == Player.WHITE) ? (lastState != null ? lastState.whiteName : "White")
-                                                    : (lastState != null ? lastState.blackName : "Black");
-        String title = (winner == myColor) ? "You win!" : "You lose";
-        int choice = JOptionPane.showConfirmDialog(this,
-                winnerName + " wins!\n\nPlay again?",
-                title,
-                JOptionPane.YES_NO_OPTION);
-        if (choice == JOptionPane.YES_OPTION) {
+        GameOverDialog dialog = new GameOverDialog(this, winner, myColor, lastState);
+        dialog.setVisible(true);
+        if (dialog.wantsReplay()) {
             conn.replay();
-            appendLog("Replay requested, waiting for opponent...");
+            appendLog("Tekrar oynama istendi, rakip bekleniyor...");
         } else {
             conn.quit();
             dispose();
