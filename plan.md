@@ -370,3 +370,298 @@ Kalan işler:
 
 Tahmini kalan süre: ~5-7 saat
 ```
+
+---
+
+## 🔎 HOCANIN GEREKSİNİMLERİNE GÖRE GÜNCEL HATALAR VE EKSİKLER (Kod Analizi: 2026-05-05)
+
+Aşağıdaki bölüm, projenin tüm kaynak kodlarının tek tek incelenmesi ve hocanın proje tanımındaki maddelerin karşılaştırılmasıyla oluşturulmuştur.
+
+---
+
+### 🔴 1. AWS SUNUCU ZORUNLULUĞU — YAPILMADI
+
+**Hocanın ifadesi:** _"The server application will be hosted and run on AWS. Client applications must communicate with the AWS server using its IP address (this is mandatory)."_
+
+**Mevcut durum:**
+- `StartScreen.java` satır 13: `DEFAULT_HOST = "127.0.0.1"` → Sadece lokal bağlantı.
+- AWS EC2 instance oluşturulmadı.
+- Security Group'ta port 5555 açılmadı.
+- İki client'ın farklı bilgisayarlardan AWS IP üzerinden bağlanma testi yapılmadı.
+
+**Yapılması gereken:**
+1. AWS EC2 instance aç (t2.micro, Free Tier).
+2. Security Group → Inbound Rule: TCP 5555, Source 0.0.0.0/0.
+3. Java 17 kur, JAR'ı yükle, `nohup java -jar backgammon-1.0-SNAPSHOT.jar server 5555 &` ile başlat.
+4. `StartScreen.java` içinde `DEFAULT_HOST` değerini AWS public IP olarak değiştir.
+5. İki ayrı bilgisayardan bağlanıp test et.
+
+> ⚠️ **Bu madde ZORUNLU (mandatory). Yapılmazsa büyük puan kaybı olur.**
+
+---
+
+### 🔴 2. RAPOR (RAPOR.md) — FORMAT VE İÇERİK EKSİK
+
+**Hocanın ifadesi:** _"The project report must be written in a NEAT and CAREFUL manner according to the provided report format."_
+
+**Mevcut durum:**
+- `RAPOR.md` şu anda sadece bir **eksikler kontrol listesi** (63 satır). Gerçek bir rapor DEĞİL.
+- Hocanın istediği format ve içerik yok.
+
+**Raporda olması gereken bölümler:**
+1. **Kapak Sayfası** — Ad, soyad, öğrenci no, ders adı, tarih.
+2. **Proje Özeti** — Tavla oyununun ne olduğu, nasıl bir çözüm geliştirildiği.
+3. **Kullanılan Teknolojiler** — Java 17, Maven, Swing, TCP Socket, Object Serialization.
+4. **Mimari Tasarım** — Server-Client yapısı, paket diyagramı, sınıf sorumlulukları.
+5. **Ağ Protokolü** — `MessageType` tablosu (yön, payload, açıklama).
+6. **Oyun Kuralları ve Uygulama Detayları** — Bar, vurma, blokaj, bearing-off, çift zar, otomatik pas.
+7. **Ekran Görüntüleri** — StartScreen, GameScreen, GameOverDialog, bağlantı bekleme.
+8. **Çoklu Eşleşme (Multi-Room)** — 3. oyuncu bekler, 4. ile eşlenir mantığı.
+9. **AWS Deployment** — EC2 kurulumu, bağlantı testi, public IP.
+10. **Test Senaryoları** — Manuel test tablosu (bar girişi, blokaj, bearing-off, undo, replay vb.).
+11. **Bilinen Sorunlar / Çalışmayan Kısımlar** — Hocanın "çalışmayan kısımlar belirtilmeli" dediği bölüm.
+12. **Sonuç ve Değerlendirme**.
+
+> ⚠️ **"If the program does not work, the non-working parts and the reasons must be specified" — bu bölüm raporda mutlaka olmalı.**
+
+---
+
+### 🔴 3. YORUM SATIRLARI (COMMENT LINES) — BÜYÜK ÇOĞUNLUKTA EKSİK
+
+**Hocanın ifadesi:** _"The project code must adhere to basic programming principles and include comment lines (this will affect grading)."_
+
+**Mevcut durum — dosya bazında analiz:**
+
+| Dosya | Sınıf Javadoc | Metot Javadoc | Satır İçi Yorum | Değerlendirme |
+|-------|:---:|:---:|:---:|---|
+| `BackgammonLogic.java` (210 satır) | ✅ Var | ⚠️ Kısmen (3/12 metot) | ❌ Yok | Kritik dosya, her metoda yorum şart |
+| `GameSession.java` (228 satır) | ✅ Var | ⚠️ Kısmen (2/10 metot) | ❌ Çok az | Oyun döngüsü açıklanmalı |
+| `GameScreen.java` (327 satır) | ✅ Var | ⚠️ Kısmen (1/15 metot) | ❌ Çok az | En büyük client dosyası, yorum lazım |
+| `BoardPanel.java` (360 satır) | ✅ Var | ⚠️ Kısmen (2/18 metot) | ❌ Çok az | Koordinat sistemi açıklanmalı |
+| `ClientConnection.java` (104 satır) | ✅ Var | ⚠️ Kısmen (1/10 metot) | ❌ Yok | Protokol akışı açıklanmalı |
+| `StartScreen.java` (183 satır) | ✅ Var | ❌ Yok (0/8 metot) | ❌ Yok | Bağlantı akışı açıklanmalı |
+| `GameOverDialog.java` (111 satır) | ✅ Var | ❌ Yok | ❌ Yok | Constructor çok uzun, bölümleri açıkla |
+| `DicePanel.java` (98 satır) | ✅ Var | ⚠️ Kısmen | ❌ Yok | Zar çizim mantığı açıklanmalı |
+| `BackgammonServer.java` (108 satır) | ✅ Var | ❌ Yok (0/5 metot) | ❌ Çok az | Eşleşme mantığı açıklanmalı |
+| `ClientHandler.java` (92 satır) | ✅ Var | ⚠️ Kısmen (1/7 metot) | ❌ Yok | Queue mekanizması açıklanmalı |
+| `GameState.java` (95 satır) | ✅ Var | ⚠️ Kısmen | ❌ Yok | Board convention zaten Javadoc'ta var, yeterli |
+| `Move.java` (27 satır) | ✅ Var | — | — | Yeterli |
+| `Player.java` (10 satır) | ❌ Yok | ❌ Yok | — | Enum'a en az 1 satır açıklama |
+| `Message.java` (30 satır) | ✅ Var | — | — | Yeterli |
+| `MessageType.java` (21 satır) | ❌ Yok | — | ✅ Satır içi var | Enum'a sınıf Javadoc ekle |
+| `Backgammon.java` (30 satır) | ✅ Var | — | — | Yeterli |
+| `BackgammonClient.java` (19 satır) | ✅ Var | — | — | Yeterli |
+
+**Öncelikli yorum eklenmesi gereken dosyalar (puan etkisi yüksek):**
+1. `BackgammonLogic.java` — Her metoda Türkçe/İngilizce açıklama
+2. `GameSession.java` — Oyun döngüsü, hamle işleme, undo, replay akışları
+3. `BoardPanel.java` — Koordinat sistemi, `colToIndex`, çizim fonksiyonları
+4. `GameScreen.java` — İki tıklama hamle akışı, `pickDie`, callback mekanizması
+5. `BackgammonServer.java` — Eşleşme mantığı, `waiting` kuyruğu
+
+---
+
+### 🔴 4. README.md — TAMAMEN BOŞ
+
+**Mevcut durum:** `README.md` sadece `# backgammon_networks` içeriyor (22 byte). GitHub'da ilk bakılan dosya.
+
+**Hocanın ifadesi:** _"Projects must be started on GitHub"_ — README profesyonel olmalı.
+
+**Eklenmesi gereken bölümler:**
+1. Proje adı ve özeti
+2. Kullanılan teknolojiler (Java 17, Maven, Swing, TCP Socket)
+3. Proje yapısı (paket açıklamaları)
+4. Çalıştırma komutları:
+   - Server: `java -jar backgammon-1.0-SNAPSHOT.jar server 5555`
+   - Client: `java -jar backgammon-1.0-SNAPSHOT.jar client`
+   - Ya da: `java -jar backgammon-1.0-SNAPSHOT.jar` (varsayılan: client)
+5. AWS bağlantı bilgileri (IP ve port)
+6. Protokol tablosu (MessageType listesi)
+7. Ekran görüntüsü (opsiyonel ama çok iyi puan kazandırır)
+
+---
+
+### 🔴 5. ZIP DOSYASI İSİMLENDİRME — YAPILMADI
+
+**Hocanın ifadesi:** _"Name the project file as 'name_surname_id_networklab_2026_project.zip' without using Turkish characters."_
+
+**Hata cezası:** Yanlış isimlendirme = **-10 puan**.
+
+**Yapılması gereken:**
+- Dosya adı örneği: `merve_kedersiz_12345678_networklab_2026_project.zip`
+- Türkçe karakter kullanılmayacak (ö→o, ü→u, ç→c, ş→s, ı→i, ğ→g)
+
+---
+
+### 🔴 6. GIT KULLANIMI — KONTROL EDİLMELİ
+
+**Hocanın ifadesi:** _"Projects that do not use the Git system will be penalized (-20 points)."_
+
+**Kontrol edilmesi gerekenler:**
+1. Git repository oluşturulmuş mu? → `.git` klasörü var ✅
+2. Düzenli commit geçmişi var mı? → **Kontrol edilmeli**
+3. Commitlenmemiş değişiklikler var mı? → **Kontrol edilmeli** (`git status`)
+4. Tüm son değişiklikler commit'lenmiş mi? → **Kontrol edilmeli**
+5. GitHub'a push yapılmış mı? → **Kontrol edilmeli**
+
+> ⚠️ Git kullanılmayan projeler **-20 puan** kaybeder. Düzenli commit geçmişi olmazsa "proje son anda yapıldı" izlenimi verir.
+
+---
+
+### 🟡 7. BAŞLANGIÇ EKRANI (START SCREEN) — MEVCUT AMA EKSİKLER VAR
+
+**Hocanın ifadesi:** _"Each project must include a start screen and an end screen."_
+
+**Mevcut durum:** `StartScreen.java` var ve çalışıyor ✅
+- Gradient arka plan ✅
+- "BACKGAMMON" başlık ✅
+- İsim girişi ✅
+- "Connect & Play" ve "Game Rules" butonları ✅
+- Bağlantı animasyonu ("Connecting...") ✅
+
+**Eksikler:**
+- IP/port giriş alanı gizlenmiş, `DEFAULT_HOST = "127.0.0.1"` sabit → AWS IP olarak güncellenmeli.
+- Oyun kuralları dialog'u sadece İngilizce → Türkçe de eklenebilir (opsiyonel).
+
+---
+
+### 🟢 8. BİTİŞ EKRANI (END SCREEN) — TAMAMLANDI
+
+**Hocanın ifadesi:** _"Each project must include a start screen and an end screen."_
+
+**Mevcut durum:** `GameOverDialog.java` var ve çalışıyor ✅
+- Gradient arka plan ✅
+- Kazanan/kaybeden başlık rengi (yeşil/kırmızı) ✅
+- Skor özeti (toplanan taşlar, bar'da kalanlar) ✅
+- "Tekrar Oyna" ve "Çıkış" butonları ✅
+
+---
+
+### 🟢 9. TEKRAR OYNAMA (REPLAY) — TAMAMLANDI
+
+**Hocanın ifadesi:** _"The programs should allow the game to be replayed without closing the application."_
+
+**Mevcut durum:** Çalışıyor ✅
+- `GameOverDialog` → "Tekrar Oyna" butonu → `REPLAY` mesajı sunucuya gönderiliyor.
+- Server tarafında `askReplay()` paralel bekleme ile iki oyuncunun cevabı toplanıyor.
+- 60 saniye timeout var.
+- Rakip reddederse bilgilendirme mesajı gönderiliyor.
+- Yeni oyun başlayınca log temizleniyor (`gameOverSeen` flag).
+
+---
+
+### 🟢 10. ÇOKLU CLIENT DESTEĞİ (MULTI-ROOM) — TAMAMLANDI
+
+**Hocanın ifadesi:** _"All games must support a server with multiple clients."_
+
+**Mevcut durum:** Çalışıyor ✅
+- 1-2 oyuncu → ilk `GameSession` başlar.
+- 3. oyuncu → `waiting` kuyruğunda bekler, `WAITING` mesajı alır.
+- 4. oyuncu → 3. oyuncu ile yeni `GameSession` başlar.
+- Her `GameSession` ayrı thread'de çalışır, birbirini engellemez.
+- Ölü bekleyiciler `waiting.removeIf(w -> !w.isAlive())` ile temizleniyor.
+
+---
+
+### 🟡 11. KODDA TESPİT EDİLEN TEKNİK HATALAR VE RİSKLER
+
+#### 11.1 Server Accept Loop Bloklama Riski
+**Dosya:** `BackgammonServer.java` satır 46-67
+
+**Sorun:** `handleNewConnection()` metodu accept loop içinde çağrılıyor ve `h.poll(30_000)` ile HELLO mesajı bekliyor. Bu süre boyunca (30 saniye) başka hiçbir client bağlanamaz.
+
+```java
+// Sorunlu akış:
+Socket socket = server.accept();     // yeni client geldi
+handleNewConnection(socket);          // 30 sn HELLO bekle ← BU SIRADA ACCEPT DURUR
+```
+
+**Etki:** Kötü niyetli veya hatalı bir client bağlanıp HELLO göndermezse, 30 saniye boyunca diğer oyuncular bağlanamaz.
+
+**Çözüm:** `handleNewConnection` içindeki HELLO bekleme ve eşleştirme işlemini ayrı bir thread'e taşı.
+
+---
+
+#### 11.2 `consecutivePasses >= 10` Abort Mantığı
+**Dosya:** `GameSession.java` satır 97-100
+
+**Sorun:** Arka arkaya 10 pas olunca oyun abort ediliyor. Bu gerçek tavla kuralı değil. Blokajlı pozisyonlarda arka arkaya pas normal olabilir.
+
+**Çözüm:** Bu kontrolü kaldır veya raporda "deadlock safety mechanism" olarak açıkla.
+
+---
+
+#### 11.3 `GameOverDialog` Buton Metni — Karakter Sorunu
+**Dosya:** `GameOverDialog.java` satır 92
+
+**Sorun:** `"Cikis"` yazıyor, `"Çıkış"` olması lazım. Ancak dosya encoding UTF-8 olduğundan aslında doğru gösterilmeli — yine de tutarsız: başlıkta `"Kazandınız!"` (Türkçe karakterli) var ama buton metninde yok.
+
+---
+
+#### 11.4 `Player.java` — Javadoc Yok
+**Dosya:** `Player.java` (10 satır)
+
+**Sorun:** Enum sınıfına hiç Javadoc eklenmemiş. Basit bir sınıf olsa da hocanın yorum satırı beklentisini karşılamak için en az bir satır açıklama ekle.
+
+---
+
+#### 11.5 `MessageType.java` — Sınıf Javadoc Yok
+**Dosya:** `MessageType.java` (21 satır)
+
+**Sorun:** Enum değerlerinin yanında satır içi yorum var ama sınıf seviyesinde Javadoc yok.
+
+---
+
+### 🟡 12. GÖRSEL ARAYÜZ (UI) DEĞERLENDİRMESİ
+
+**Hocanın ifadesi:** _"The visual interface of the projects must be well-designed, user-friendly, and complete from the end-user's perspective."_
+
+**İyi olan taraflar:**
+- StartScreen: Gradient arka plan, büyük başlık, styled butonlar ✅
+- GameScreen: BoardPanel gerçekçi tahta çizimi, yeşil hedef gösterimi, altın seçim çerçevesi ✅
+- GameOverDialog: Gradient panel, renk kodlu başlık, skor özeti ✅
+- DicePanel: Gerçekçi zar noktaları, kalan zarlar dinamik güncelleniyor ✅
+- Sıra göstergesi (turnLabel): Yeşil/turuncu renkli "Sıra Sende!" / "Rakibin Oynuyor..." ✅
+
+**Eksik/iyileştirilebilecek noktalar:**
+- OFF (taş toplama) alanında "OFF" etiketi yok — kullanıcı nereye tıklayacağını bilemeyebilir.
+- Bearing-off mümkün olduğunda tray alanı otomatik highlight olmuyor.
+- Bar'da taş varken normal noktaya tıklayınca sadece log mesajı çıkıyor, görsel uyarı yok.
+
+---
+
+### 📊 HOCA GEREKSİNİMLERİ KARŞILAŞTIRMA TABLOSU
+
+| # | Hocanın Gereksinimleri | Durum | Not |
+|---|---|:---:|---|
+| 1 | Java dilinde yazılmalı | ✅ | Java 17, Maven projesi |
+| 2 | Görsel arayüz iyi tasarlanmış, kullanıcı dostu olmalı | ✅ | StartScreen, GameScreen, GameOverDialog mevcut ve profesyonel |
+| 3 | Server konsol uygulaması olabilir | ✅ | `BackgammonServer` konsol, GUI yok |
+| 4 | Server AWS üzerinde çalışmalı (ZORUNLU) | ❌ | Henüz yapılmadı, IP 127.0.0.1 |
+| 5 | Client AWS IP ile bağlanmalı (ZORUNLU) | ❌ | Lokal bağlantı var, AWS IP yok |
+| 6 | Rapor düzgün ve özenli yazılmalı | ❌ | RAPOR.md sadece kontrol listesi, rapor formatı yok |
+| 7 | Çalışmayan kısımlar raporda belirtilmeli | ❌ | Raporda bu bölüm yok |
+| 8 | Yorum satırları olmalı (puana etki eder) | ❌ | Çoğu dosyada yetersiz yorum |
+| 9 | Temel programlama prensiplerine uymalı | ✅ | OOP, MVC benzeri yapı, protokol ayrımı |
+| 10 | Değerlendiricinin bilgisayarında çalışmalı | ⚠️ | Maven kurulu olmalı veya JAR hazır olmalı |
+| 11 | GitHub kullanılmalı (-20 puan cezası) | ⚠️ | .git var ama düzenli commit ve push kontrol edilmeli |
+| 12 | ZIP dosya adı formatı doğru olmalı (-10 puan) | ❌ | Henüz hazırlanmadı |
+| 13 | Başlangıç ekranı (start screen) | ✅ | StartScreen.java mevcut |
+| 14 | Bitiş ekranı (end screen) | ✅ | GameOverDialog.java mevcut |
+| 15 | Oyun kapatmadan tekrar oynanabilmeli | ✅ | Replay mekanizması çalışıyor |
+| 16 | Server çoklu client desteklemeli | ✅ | Multi-room matchmaking mevcut |
+| 17 | Son kullanıcıyı tatmin edecek tasarım | ✅ | Profesyonel UI, UX iyileştirmeleri yapılmış |
+| 18 | Oyun kurallarını araştırıp uygulamalı | ✅ | Bar, vurma, blokaj, bearing-off, çift zar, otomatik pas |
+| 19 | Son teslim: 12 Mayıs 2026 Pazar 24:00 | ⏰ | 7 gün kaldı |
+
+---
+
+### 🎯 EN KRİTİK 5 GÖREV (Puan Kaybı Riski Yüksek → Düşük)
+
+| Sıra | Görev | Risk | Tahmini Süre |
+|:---:|---|---|---|
+| 1 | **AWS Deploy** — Server AWS'de çalışmalı, client AWS IP ile bağlanmalı | 🔴 ZORUNLU, yapılmazsa büyük puan kaybı | 2-3 saat |
+| 2 | **RAPOR.md** — Tam rapor formatında yeniden yazılmalı | 🔴 "Düzgün ve özenli" olmazsa puan düşer | 2-3 saat |
+| 3 | **Yorum satırları** — Tüm dosyalara metot/satır içi yorum eklenmeli | 🔴 "Puana etki eder" diyor hoca | 1-2 saat |
+| 4 | **README.md** — İçerik eklenmeli | 🟡 GitHub puanı için gerekli | 30 dk |
+| 5 | **ZIP isimlendirme** — `ad_soyad_no_networklab_2026_project.zip` | 🟡 Yanlış isim = -10 puan | 5 dk |
