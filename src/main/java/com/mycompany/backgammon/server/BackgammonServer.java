@@ -22,7 +22,7 @@ import java.util.Deque;
  */
 public class BackgammonServer {
 
-    public static final int DEFAULT_PORT = 5555;
+    public static final int DEFAULT_PORT = 5000;
 
     private final int port;
     private final Deque<ClientHandler> waiting = new ArrayDeque<>();

@@ -5,7 +5,7 @@ import javax.swing.UIManager;
 
 /**
  * Client entry point. Shows the start screen; further screens are driven
- * from there.
+ * from there
  */
 public class BackgammonClient {
     public static void main(String[] args) {

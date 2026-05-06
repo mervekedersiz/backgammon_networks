@@ -2,16 +2,19 @@ package com.mycompany.backgammon.client;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.image.BufferedImage;
 import java.io.IOException;
+import java.net.URL;
+import javax.imageio.ImageIO;
 
 /**
  * Start screen — collects player name, connects to the server, and launches GameScreen.
- * Server host/port use defaults (127.0.0.1:5555) and are not exposed in the UI.
+ * Server host/port use defaults (16.171.174.37:5000) and are not exposed in the UI.
  */
 public class StartScreen extends JFrame {
 
-    private static final String DEFAULT_HOST = "127.0.0.1";
-    private static final int    DEFAULT_PORT  = 5555;
+    private static final String DEFAULT_HOST = "16.171.174.37";
+    private static final int    DEFAULT_PORT  = 5000;
 
     private final JTextField nameField  = new JTextField(System.getProperty("user.name", "Player"), 14);
     private final JLabel     statusLabel = new JLabel(" ");
@@ -23,7 +26,7 @@ public class StartScreen extends JFrame {
         super("Backgammon");
         setDefaultCloseOperation(EXIT_ON_CLOSE);
 
-        JPanel root = new JPanel(new BorderLayout(12, 12)) {
+        JPanel root = new JPanel(new BorderLayout(0, 0)) {
             @Override protected void paintComponent(Graphics g) {
                 super.paintComponent(g);
                 Graphics2D g2 = (Graphics2D) g;
@@ -33,24 +36,20 @@ public class StartScreen extends JFrame {
             }
         };
         root.setOpaque(false);
-        root.setBorder(BorderFactory.createEmptyBorder(28, 36, 24, 36));
-
-        // Title
-        JLabel title = new JLabel("BACKGAMMON", SwingConstants.CENTER);
-        title.setFont(new Font("Serif", Font.BOLD, 44));
-        title.setForeground(new Color(0x5A2200));
-        root.add(title, BorderLayout.NORTH);
+        // ---- TOP: splash image (falls back to text title) ----
+        JComponent header = buildHeader();
+        root.add(header, BorderLayout.NORTH);
 
         // Name form
         JPanel form = new JPanel(new GridBagLayout());
         form.setOpaque(false);
+        form.setBorder(BorderFactory.createEmptyBorder(12, 36, 4, 36));
         GridBagConstraints c = new GridBagConstraints();
         c.insets = new Insets(10, 8, 10, 8);
         c.anchor = GridBagConstraints.WEST;
 
-        Font labelFont = new Font("SansSerif", Font.BOLD, 14);
         JLabel nameLabel = new JLabel("Your Name:");
-        nameLabel.setFont(labelFont);
+        nameLabel.setFont(new Font("SansSerif", Font.BOLD, 14));
         nameLabel.setForeground(new Color(0x3D2313));
 
         nameField.setFont(new Font("SansSerif", Font.PLAIN, 14));
@@ -65,6 +64,7 @@ public class StartScreen extends JFrame {
         // South: status + buttons
         JPanel south = new JPanel(new BorderLayout(8, 8));
         south.setOpaque(false);
+        south.setBorder(BorderFactory.createEmptyBorder(0, 36, 20, 36));
 
         statusLabel.setFont(new Font("SansSerif", Font.ITALIC, 12));
         statusLabel.setHorizontalAlignment(SwingConstants.CENTER);
@@ -87,8 +87,31 @@ public class StartScreen extends JFrame {
 
         setContentPane(root);
         pack();
-        setMinimumSize(new Dimension(340, 260));
+        setMinimumSize(new Dimension(360, 300));
         setLocationRelativeTo(null);
+    }
+
+    /** Tries to load bg.jpg; falls back to a text label if missing. */
+    private JComponent buildHeader() {
+        URL imgUrl = StartScreen.class.getResource("/images/bg.png");
+        if (imgUrl != null) {
+            try {
+                BufferedImage raw = ImageIO.read(imgUrl);
+                // Scale to panel width (340px) keeping aspect ratio
+                int targetW = 340;
+                int targetH = raw.getHeight() * targetW / raw.getWidth();
+                Image scaled = raw.getScaledInstance(targetW, targetH, Image.SCALE_SMOOTH);
+                JLabel imgLabel = new JLabel(new ImageIcon(scaled));
+                imgLabel.setHorizontalAlignment(SwingConstants.CENTER);
+                return imgLabel;
+            } catch (IOException ignored) { /* fall through */ }
+        }
+        // Fallback: text title
+        JLabel title = new JLabel("BACKGAMMON", SwingConstants.CENTER);
+        title.setFont(new Font("Serif", Font.BOLD, 44));
+        title.setForeground(new Color(0x5A2200));
+        title.setBorder(BorderFactory.createEmptyBorder(24, 0, 8, 0));
+        return title;
     }
 
     private JButton styledButton(String text, Color bg) {
