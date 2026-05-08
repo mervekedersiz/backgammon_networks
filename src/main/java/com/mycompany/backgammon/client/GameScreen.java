@@ -122,6 +122,10 @@ public class GameScreen extends JFrame {
         conn.onAssignColor = color -> SwingUtilities.invokeLater(() -> {
             myColor = color;
             appendLog("You are " + color + ".");
+            if (lastState != null) {
+                refreshLabels();
+                updateDice();
+            }
         });
         conn.onWaiting = text -> SwingUtilities.invokeLater(() -> appendLog(text));
         conn.onMessage = text -> SwingUtilities.invokeLater(() -> appendLog(text));
