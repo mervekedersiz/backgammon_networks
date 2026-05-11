@@ -24,11 +24,26 @@ public class BackgammonServer {
 
     public static final int DEFAULT_PORT = 5000;
 
+    private static BackgammonServer instance;
+
     private final int port;
     private final Deque<ClientHandler> waiting = new ArrayDeque<>();
 
     public BackgammonServer(int port) {
         this.port = port;
+        instance = this;
+    }
+
+    public static BackgammonServer getInstance() {
+        return instance;
+    }
+
+    /**
+     * Re-queue a remaining player (after opponent quit) so they can be
+     * matched with the next connecting player.
+     */
+    public void requeue(ClientHandler h) {
+        enqueueAndPair(h);
     }
 
     public void start() throws IOException {

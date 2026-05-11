@@ -30,6 +30,7 @@ public class ClientConnection {
     public Consumer<String>   onIllegalMove = m -> {};
     public Consumer<Player>   onGameOver    = w -> {};
     public Consumer<String>   onWaiting     = m -> {};
+    public Consumer<String>   onOpponentQuit = name -> {};
     public Runnable           onDisconnect  = () -> {};
 
     public ClientConnection(String host, int port) throws IOException {
@@ -69,6 +70,7 @@ public class ClientConnection {
             case ILLEGAL_MOVE -> onIllegalMove.accept((String) msg.payload);
             case GAME_OVER    -> onGameOver.accept((Player) msg.payload);
             case WAITING      -> onWaiting.accept((String) msg.payload);
+            case OPPONENT_QUIT -> onOpponentQuit.accept((String) msg.payload);
             default -> { /* client ignores other server messages */ }
         }
     }

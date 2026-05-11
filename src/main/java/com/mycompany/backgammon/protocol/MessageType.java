@@ -16,5 +16,6 @@ public enum MessageType {
     STATE,          // payload: GameState
     MESSAGE,        // payload: String (info / chat / status)
     ILLEGAL_MOVE,   // payload: String reason
-    GAME_OVER       // payload: Player winner
+    GAME_OVER,      // payload: Player winner
+    OPPONENT_QUIT   // payload: String quitterName
 }

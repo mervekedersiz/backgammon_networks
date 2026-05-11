@@ -8,11 +8,15 @@ import java.awt.*;
 
 /**
  * Custom game-over dialog: shows winner, score summary, and replay/quit choice.
+ * Also used when an opponent quits mid-game.
  */
 public class GameOverDialog extends JDialog {
 
     private boolean wantsReplay = false;
 
+    /**
+     * Normal game-over constructor: displays winner info with score summary.
+     */
     public GameOverDialog(JFrame parent, Player winner, Player myColor, GameState state) {
         super(parent, true); // modal
         setUndecorated(false);
@@ -22,21 +26,11 @@ public class GameOverDialog extends JDialog {
                 ? (state != null ? state.whiteName : "White") + " (Beyaz)"
                 : (state != null ? state.blackName : "Black") + " (Siyah)";
         boolean iWon = (winner == myColor);
-        String headline = iWon ? "Tebrikler, Kazandınız! 🏆" : "Oyun Bitti";
+        String headline = iWon ? "Tebrikler, Kazandınız! \uD83C\uDFC6" : "Oyun Bitti";
 
         setTitle(iWon ? "Kazandınız!" : "Kaybettiniz");
 
-        JPanel root = new JPanel(new BorderLayout(12, 12)) {
-            @Override protected void paintComponent(Graphics g) {
-                super.paintComponent(g);
-                Graphics2D g2 = (Graphics2D) g;
-                g2.setPaint(new GradientPaint(0, 0, new Color(0xFFF8EE),
-                        0, getHeight(), new Color(0xE8C88A)));
-                g2.fillRect(0, 0, getWidth(), getHeight());
-            }
-        };
-        root.setOpaque(false);
-        root.setBorder(BorderFactory.createEmptyBorder(24, 32, 24, 32));
+        JPanel root = buildRootPanel();
 
         // Headline
         JLabel headlineLabel = new JLabel(headline, SwingConstants.CENTER);
@@ -79,6 +73,87 @@ public class GameOverDialog extends JDialog {
         root.add(center, BorderLayout.CENTER);
 
         // Buttons
+        root.add(buildButtons(), BorderLayout.SOUTH);
+
+        setContentPane(root);
+        pack();
+        setMinimumSize(new Dimension(380, 220));
+        setLocationRelativeTo(parent);
+    }
+
+    /**
+     * Opponent-quit constructor: shows that the opponent left the game
+     * and offers Replay / Quit options.
+     */
+    public GameOverDialog(JFrame parent, String quitterName) {
+        super(parent, true); // modal
+        setUndecorated(false);
+        setResizable(false);
+        setTitle("Rakip Ayrıldı");
+
+        JPanel root = buildRootPanel();
+
+        // Headline
+        JLabel headlineLabel = new JLabel("Rakip Oyundan Ayrıldı", SwingConstants.CENTER);
+        headlineLabel.setFont(new Font("Serif", Font.BOLD, 26));
+        headlineLabel.setForeground(new Color(0xCC6600));
+        root.add(headlineLabel, BorderLayout.NORTH);
+
+        // Center: quitter info
+        JPanel center = new JPanel();
+        center.setOpaque(false);
+        center.setLayout(new BoxLayout(center, BoxLayout.Y_AXIS));
+
+        center.add(Box.createVerticalStrut(16));
+
+        JLabel nameLabel = new JLabel(quitterName + " oyundan çıktı.", SwingConstants.CENTER);
+        nameLabel.setFont(new Font("Serif", Font.BOLD, 20));
+        nameLabel.setForeground(new Color(0x5A3200));
+        nameLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        center.add(nameLabel);
+
+        center.add(Box.createVerticalStrut(12));
+
+        JLabel infoLabel = new JLabel("Tekrar oynamak veya çıkmak için seçim yapın.",
+                SwingConstants.CENTER);
+        infoLabel.setFont(new Font("SansSerif", Font.PLAIN, 14));
+        infoLabel.setForeground(new Color(0x3D2313));
+        infoLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        center.add(infoLabel);
+
+        root.add(center, BorderLayout.CENTER);
+
+        // Buttons
+        root.add(buildButtons(), BorderLayout.SOUTH);
+
+        setContentPane(root);
+        pack();
+        setMinimumSize(new Dimension(380, 220));
+        setLocationRelativeTo(parent);
+    }
+
+    /**
+     * Creates the gradient background root panel used by both constructors.
+     */
+    private JPanel buildRootPanel() {
+        JPanel root = new JPanel(new BorderLayout(12, 12)) {
+            @Override protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2 = (Graphics2D) g;
+                g2.setPaint(new GradientPaint(0, 0, new Color(0xFFF8EE),
+                        0, getHeight(), new Color(0xE8C88A)));
+                g2.fillRect(0, 0, getWidth(), getHeight());
+            }
+        };
+        root.setOpaque(false);
+        root.setBorder(BorderFactory.createEmptyBorder(24, 32, 24, 32));
+        return root;
+    }
+
+    /**
+     * Creates the Replay / Quit button panel used by both constructors.
+     */
+    private JPanel buildButtons() {
         JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 16, 0));
         btnPanel.setOpaque(false);
 
@@ -98,12 +173,7 @@ public class GameOverDialog extends JDialog {
 
         btnPanel.add(replayBtn);
         btnPanel.add(quitBtn);
-        root.add(btnPanel, BorderLayout.SOUTH);
-
-        setContentPane(root);
-        pack();
-        setMinimumSize(new Dimension(380, 220));
-        setLocationRelativeTo(parent);
+        return btnPanel;
     }
 
     public boolean wantsReplay() { return wantsReplay; }

@@ -18,6 +18,7 @@ public class GameSession implements Runnable {
     private final ClientHandler white;
     private final ClientHandler black;
     private final GameState state = new GameState();
+    private volatile ClientHandler requeuedHandler = null;
 
     // Snapshots taken before each move in the current turn; cleared on new turn roll.
     private final List<GameState> turnSnapshots = new ArrayList<>();
@@ -55,21 +56,26 @@ public class GameSession implements Runnable {
                 state.whiteName = white.getName();
                 state.blackName = black.getName();
                 state.turn = Player.WHITE;
-                playGame();
+                boolean quitOccurred = playGame();
+                if (quitOccurred) break;  // opponent-quit flow already handled inside
                 if (!bothAlive()) break;
                 if (!askReplay()) break;
             } while (true);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } finally {
-            white.close();
-            black.close();
+            if (white != requeuedHandler) white.close();
+            if (black != requeuedHandler) black.close();
         }
     }
 
     private boolean bothAlive() { return white.isAlive() && black.isAlive(); }
 
-    private void playGame() throws InterruptedException {
+    /**
+     * Returns true if a player quit mid-game (opponent-quit flow was handled).
+     * Returns false if game ended normally (winner determined).
+     */
+    private boolean playGame() throws InterruptedException {
         state.needsRoll = true;
         broadcastState();
 
@@ -81,7 +87,8 @@ public class GameSession implements Runnable {
             if (state.needsRoll) {
                 Message msg = active.takeBlocking();
                 if (msg == null || msg.type == MessageType.QUIT) {
-                    broadcastMsg(active.getName() + " quit"); return;
+                    handleMidGameQuit(active);
+                    return true;
                 }
                 if (msg.type == MessageType.ROLL) {
                     int[] r = BackgammonLogic.rollDice();
@@ -96,7 +103,7 @@ public class GameSession implements Runnable {
                         consecutivePasses++;
                         if (consecutivePasses >= 10) {
                             broadcastMsg("[Server] Too many consecutive passes — game aborted.");
-                            return;
+                            return false;
                         }
                         continue;
                     }
@@ -110,7 +117,8 @@ public class GameSession implements Runnable {
 
             Message msg = active.takeBlocking();
             if (msg == null || msg.type == MessageType.QUIT) {
-                broadcastMsg(active.getName() + " quit"); return;
+                handleMidGameQuit(active);
+                return true;
             }
             switch (msg.type) {
                 case MOVE -> handleMove(active, (Move) msg.payload);
@@ -131,6 +139,46 @@ public class GameSession implements Runnable {
             broadcastMsg("Winner: " + of(state.winner).getName());
             white.send(MessageType.GAME_OVER, state.winner);
             black.send(MessageType.GAME_OVER, state.winner);
+        }
+        return false;
+    }
+
+    /**
+     * Called when a player quits mid-game. Notifies the remaining player
+     * with OPPONENT_QUIT and waits for their replay/quit decision.
+     */
+    private void handleMidGameQuit(ClientHandler quitter) throws InterruptedException {
+        ClientHandler remaining = (quitter == white) ? black : white;
+        quitter.close();
+
+        // Send OPPONENT_QUIT to the remaining player with the quitter's name
+        remaining.send(MessageType.OPPONENT_QUIT, quitter.getName());
+
+        // Wait for remaining player's response: REPLAY or QUIT
+        long deadline = System.currentTimeMillis() + 60_000;
+        while (remaining.isAlive()) {
+            long rem = deadline - System.currentTimeMillis();
+            if (rem <= 0) {
+                remaining.send(MessageType.MESSAGE, "Zaman aşımı — bağlantı kapatılıyor.");
+                remaining.close();
+                return;
+            }
+            Message m = remaining.poll(rem);
+            if (m == null) {
+                remaining.close();
+                return;
+            }
+            if (m.type == MessageType.QUIT) {
+                remaining.close();
+                return;
+            }
+            if (m.type == MessageType.REPLAY) {
+                // Put remaining player back in the server's waiting queue
+                remaining.send(MessageType.WAITING, "Rakip aranıyor...");
+                requeuedHandler = remaining;
+                BackgammonServer.getInstance().requeue(remaining);
+                return;
+            }
         }
     }
 

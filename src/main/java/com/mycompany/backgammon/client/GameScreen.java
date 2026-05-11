@@ -150,6 +150,10 @@ public class GameScreen extends JFrame {
             gameOverSeen = true;
             showGameOver(winner);
         });
+        conn.onOpponentQuit = quitterName -> SwingUtilities.invokeLater(() -> {
+            gameOverSeen = true;
+            showOpponentQuit(quitterName);
+        });
         conn.onDisconnect = () -> SwingUtilities.invokeLater(() -> {
             appendLog("Disconnected from server.");
             JOptionPane.showMessageDialog(this, "Disconnected from server.",
@@ -321,6 +325,24 @@ public class GameScreen extends JFrame {
         if (dialog.wantsReplay()) {
             conn.replay();
             appendLog("Tekrar oynama istendi, rakip bekleniyor...");
+        } else {
+            conn.quit();
+            dispose();
+            System.exit(0);
+        }
+    }
+
+    /**
+     * Called when the opponent quits mid-game. Shows an end screen
+     * with the quitter's name and replay/quit options.
+     */
+    private void showOpponentQuit(String quitterName) {
+        appendLog(quitterName + " oyundan ayrildi.");
+        GameOverDialog dialog = new GameOverDialog(this, quitterName);
+        dialog.setVisible(true);
+        if (dialog.wantsReplay()) {
+            conn.replay();
+            appendLog("Tekrar oynama istendi, yeni rakip bekleniyor...");
         } else {
             conn.quit();
             dispose();
